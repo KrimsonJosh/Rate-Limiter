@@ -2,7 +2,7 @@ import time
 import redis 
 from flask import request, jsonify 
 
-redis_client = redis.Redis(host = 'localhost', port = 6379, db = 0, decode_respones = True)
+redis_client = redis.Redis(host = 'localhost', port = 6379, db = 0, decode_responses = True)
 
 def rate_limiter(max_requests: int, window: int):
     '''
