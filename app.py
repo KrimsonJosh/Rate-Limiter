@@ -1,10 +1,11 @@
 from flask import Flask 
-from rate_limiter import rate_limiter
+from rate_limiter import RateLimiter
 
 app = Flask('__main__')
+limiter = RateLimiter()
 
 @app.get('/')
-@rate_limiter(max_requests = 5, window = 60)
+@limiter.limit(max_requests = 5, window = 60)
 def main():
     return ("Hello World.") 
 

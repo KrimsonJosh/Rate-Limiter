@@ -2,34 +2,31 @@ import time
 import redis 
 from flask import request, jsonify 
 
-redis_client = redis.Redis(host = 'localhost', port = 6379, db = 0, decode_responses = True)
 
-def rate_limiter(max_requests: int, window: int):
+class RateLimiter:
+    def __init__(self, redis_host="localhost", redis_port = 6379, redis_db=0):
+        self.redis = redis.Redis(host=redis_host, port=redis_port, db = redis_db, decode_responses= True)
     '''
         Rate Limiting decorator Using redis fixed window counter
         :max requests: max allowed requests within window
         :window: time (in seconds)
     '''
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            client_IP = request.remote_addr 
-            key = f"rate_limit{client_IP}"
+    def limit(self, max_requests: int, window: int):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                client_ip = request.remote_addr
+                key = f"rate_limit:{client_ip}"
 
-            # Current Request Count 
-            current_count = redis_client.get(key) 
+                current_count = self.redis.get(key)
+                if current_count is None:
+                    self.redis.setex(key, window, 1)
+                else:
+                    current_count = int(current_count)
+                    if current_count >= max_requests:
+                        return jsonify({"error": "Rate limit exceeded"}), 429
+                    self.redis.incr(key)
 
-            if current_count is None:
-                # First request, initialize 
-                redis_client.setex(key, window, 1)
-            else:
-                current_count = int(current_count) 
-                if current_count >= max_requests:
-                    return jsonify({
-                        "error": "Rate Limit Exceeded",
-                        "retry_after": redis_client.ttl(key)
-                    }), 429 
-                redis_client.incr(key) # Increments count 
+                return func(*args, **kwargs)
 
-            return func(*args, **kwargs) 
-        return wrapper 
-    return decorator
+            return wrapper
+        return decorator
