@@ -1,5 +1,5 @@
 from flask import Flask 
-from rate_limiter import RateLimiter
+from rate_limiter.limiter import RateLimiter
 
 app = Flask('__main__')
 limiter = RateLimiter()
