@@ -1,11 +1,13 @@
-import time 
 import redis 
 from flask import request, jsonify 
+from .config import REDIS_HOST, REDIS_PORT, REDIS_DB, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW
 
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 class RateLimiter:
-    def __init__(self, redis_host="localhost", redis_port = 6379, redis_db=0):
-        self.redis = redis.Redis(host=redis_host, port=redis_port, db = redis_db, decode_responses= True)
+    def __init__(self, max_requests=RATE_LIMIT_MAX_REQUESTS, window=RATE_LIMIT_WINDOW):
+        self.max_requests = max_requests
+        self.window = window
     '''
         Rate Limiting decorator Using redis fixed window counter
         :max requests: max allowed requests within window
