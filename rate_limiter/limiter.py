@@ -2,8 +2,11 @@ import redis
 from flask import request, jsonify 
 from .config import REDIS_HOST, REDIS_PORT, REDIS_DB, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW
 import time
+import logging
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
+
+logging.basicConfig(level=logging.INFO)
 
 class RateLimiter:
     def __init__(self, redis_client, max_requests=RATE_LIMIT_MAX_REQUESTS, window=RATE_LIMIT_WINDOW):
@@ -42,3 +45,14 @@ class RateLimiter:
 
             return wrapper
         return decorator
+    
+    def get_client_identifier(self):
+        """
+        Returns an Identifier for rate-limiting
+        """
+        return f"ip:{request.remote_addr}" 
+    
+    def log_rate_limit_violation(self, client_id):
+        self.redis_client.incr("rate_limit_violations_total") 
+        self.redis_client.zincrby("blocked clients", 1, client_id)
+        logging.warning(f"Rate limit exceeded for {client_id}")
