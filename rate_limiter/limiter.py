@@ -1,33 +1,43 @@
 import redis 
 from flask import request, jsonify 
 from .config import REDIS_HOST, REDIS_PORT, REDIS_DB, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW
+import time
 
 redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 class RateLimiter:
-    def __init__(self, max_requests=RATE_LIMIT_MAX_REQUESTS, window=RATE_LIMIT_WINDOW):
+    def __init__(self, redis_client, max_requests=RATE_LIMIT_MAX_REQUESTS, window=RATE_LIMIT_WINDOW):
         self.max_requests = max_requests
         self.window = window
+        self.redis_client = redis_client
     '''
-        Rate Limiting decorator Using redis fixed window counter
+        Rate Limiting decorator Using redis sliding window counter
         :max requests: max allowed requests within window
         :window: time (in seconds)
     '''
-    def limit(self, max_requests: int, window: int):
+    def limit(self):
         def decorator(func):
             def wrapper(*args, **kwargs):
                 client_ip = request.remote_addr
                 key = f"rate_limit:{client_ip}"
+                current_time = int(time.time())
+                pipeline = redis_client.pipeline() 
+                # Remove Outdated entries 
+                pipeline.zremrangebyscore(key, 0, current_time - self.window)
+                # Count current entries within dynamic window
+                pipeline.zcard(key) 
+                # Add the current request 
+                pipeline.zadd(key, {f"{current_time}-{time.time()}": current_time}) 
+                # Set expiry for key to automatically clean old keys
+                pipeline.expire(key, self.window+1)
+                results = pipeline.execute() 
 
-                current_count = self.redis.get(key)
-                if current_count is None:
-                    self.redis.setex(key, window, 1)
-                else:
-                    current_count = int(current_count)
-                    if current_count >= max_requests:
-                        return jsonify({"error": "Rate limit exceeded"}), 429
-                    self.redis.incr(key)
+                request_count = results[1] 
+                # If limit reached, block the request
+                if request_count > self.max_requests:
+                    return jsonify({"error": "Rate Limit Exceeded"}), 429
 
+         
                 return func(*args, **kwargs)
 
             return wrapper

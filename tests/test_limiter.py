@@ -8,10 +8,10 @@ test_redis = redis.Redis(host='localhost', port=6379, db=1, decode_responses=Tru
 @pytest.fixture 
 def app():
     app = Flask(__name__)
-    limiter = RateLimiter(test_redis) 
+    limiter = RateLimiter(test_redis, 3, 4) 
 
     @app.route('/')
-    @limiter.limit(max_requests=3, window=10)
+    @limiter.limit()
     def home():
         return "Hello World"
     return app 
@@ -22,10 +22,9 @@ def client(app):
 
 @pytest.fixture 
 def flush_redis():
-    # Flush Redis to ensure clean state each time.
     test_redis.flushdb()
 
-def test_rate_limit():
+def test_rate_limit(client):
     for _ in range(3):
         res = client.get('/')
         assert res.status_code == 200
